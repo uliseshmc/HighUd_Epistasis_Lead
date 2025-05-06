@@ -48,12 +48,13 @@ def get_expected_overA(xmean, xmin, xmax, R_epistasis):
   else:
     for k in range(int(xmin), int(xmax+1)):
       floatk = float(k)
-      probability_k = np.exp(floatk*np.log(xmean)-xmean- gammaln(k + 1))
+      probability_k = np.exp(floatk*np.log(xmean)- xmean- gammaln(k + 1))
       result += floatk*probability_k
     return result
+  
+vget_expected_overA = np.vectorize(get_expected_overA)
 
-def get_growht_rate(segregating_mutations, meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis):
-  expected_term = get_expected_overA(meansegregating, minsegregating, maxsegregating, R_epistasis)
+def get_growht_rate(segregating_mutations, E_selectioncoeff, R_epistasis, expected_term):
   if R_epistasis != 1:
     genotype_term = R_epistasis**(segregating_mutations)
     rbest = -(E_selectioncoeff/expected_term)*(expected_term-genotype_term)/(R_epistasis-1)
@@ -64,7 +65,8 @@ def get_growht_rate(segregating_mutations, meansegregating, minsegregating, maxs
 vget_growht_rate = np.vectorize(get_growht_rate)
 
 def get_selective_deaths(meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis):
-  growthrate_best = get_growht_rate(minsegregating, meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis)
+  expected_term = get_expected_overA(meansegregating, minsegregating, maxsegregating, R_epistasis)
+  growthrate_best = get_growht_rate(minsegregating, E_selectioncoeff, R_epistasis, expected_term)
   fitness_best = get_fitness(growthrate_best)
   fraction_selective_deaths = 1.0-(1.0/fitness_best)
   return fraction_selective_deaths
@@ -76,8 +78,24 @@ def get_fitness(growth_rate):
   return fitness
 
 def get_best_fitness(meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis):
-  growthrate_best = get_growht_rate(minsegregating, meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis)
+  expected_term = get_expected_overA(meansegregating, minsegregating, maxsegregating, R_epistasis)
+  growthrate_best = get_growht_rate(minsegregating, E_selectioncoeff, R_epistasis, expected_term)
   fitness_best = np.exp(growthrate_best)
   return fitness_best
 
 vget_best_fitness = np.vectorize(get_best_fitness)
+
+
+def get_fitness_variance(meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis):
+  expected_term = get_expected_overA(meansegregating, minsegregating, maxsegregating, R_epistasis)
+  expectationW = 0
+  espectationW2 = 0
+  for k in range(int(minsegregating), int(maxsegregating+1)):
+    floatk = float(k)
+    probability_k = np.exp(floatk*np.log(meansegregating) - meansegregating - gammaln(k + 1))
+    growthrate = get_growht_rate(k, E_selectioncoeff, R_epistasis, expected_term) 
+    fitness = np.exp(growthrate)
+    expectationW += fitness*probability_k
+    espectationW2 += (fitness**2)*probability_k
+  variance = espectationW2 - expectationW**2
+  return variance
