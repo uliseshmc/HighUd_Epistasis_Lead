@@ -37,6 +37,25 @@ def get_expected_min_max_poisson_sample(xmean, samplesize, iterations):
 
 vget_expected_min_max_poisson_sample = np.vectorize(get_expected_min_max_poisson_sample)
 
+def get_median_min_max_poisson_sample(xmean, samplesize, iterations):
+  """
+  Generates the expected minimum and standard error of iterations samples of Poisson distribution of size samplesize.
+  """
+  array_minx = []
+  array_maxx = []
+  for i in range(iterations):
+    resultmin, resultmax = get_min_max_poisson_sample(xmean, samplesize)
+    array_minx.append(resultmin)
+    array_maxx.append(resultmax)
+
+  median_array_minx = np.median(array_minx)
+
+  median_array_maxx = np.median(array_maxx)
+
+  return median_array_minx, median_array_maxx
+
+vget_median_min_max_poisson_sample = np.vectorize(get_median_min_max_poisson_sample)
+
 def get_expected_overA(xmean, xmin, xmax, R_epistasis):
   result = 0
   if R_epistasis != 1:
@@ -54,19 +73,22 @@ def get_expected_overA(xmean, xmin, xmax, R_epistasis):
   
 vget_expected_overA = np.vectorize(get_expected_overA)
 
-def get_growht_rate(segregating_mutations, E_selectioncoeff, R_epistasis, expected_term):
-  if R_epistasis != 1:
-    genotype_term = R_epistasis**(segregating_mutations)
-    rbest = -(E_selectioncoeff/expected_term)*(expected_term-genotype_term)/(R_epistasis-1)
-  else:
-    rbest = -E_selectioncoeff*(expected_term-segregating_mutations)
+def get_growht_rate(segregating_mutations, E_selectioncoeff, R_epistasis, expected_term, xmin, xmax):
+  if segregating_mutations < xmin or segregating_mutations > xmax:
+    rbest = 0.0
+  else:  
+    if R_epistasis != 1:
+      genotype_term = R_epistasis**(segregating_mutations)
+      rbest = -(E_selectioncoeff/expected_term)*(expected_term-genotype_term)/(R_epistasis-1)
+    else:
+      rbest = -E_selectioncoeff*(expected_term-segregating_mutations)
   return rbest
 
 vget_growht_rate = np.vectorize(get_growht_rate)
 
 def get_selective_deaths(meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis):
   expected_term = get_expected_overA(meansegregating, minsegregating, maxsegregating, R_epistasis)
-  growthrate_best = get_growht_rate(minsegregating, E_selectioncoeff, R_epistasis, expected_term)
+  growthrate_best = get_growht_rate(minsegregating, E_selectioncoeff, R_epistasis, expected_term, minsegregating, maxsegregating)
   fitness_best = get_fitness(growthrate_best)
   fraction_selective_deaths = 1.0-(1.0/fitness_best)
   return fraction_selective_deaths
@@ -79,7 +101,7 @@ def get_fitness(growth_rate):
 
 def get_best_fitness(meansegregating, minsegregating, maxsegregating, E_selectioncoeff, R_epistasis):
   expected_term = get_expected_overA(meansegregating, minsegregating, maxsegregating, R_epistasis)
-  growthrate_best = get_growht_rate(minsegregating, E_selectioncoeff, R_epistasis, expected_term)
+  growthrate_best = get_growht_rate(minsegregating, E_selectioncoeff, R_epistasis, expected_term, minsegregating, maxsegregating)
   fitness_best = np.exp(growthrate_best)
   return fitness_best
 
@@ -93,7 +115,7 @@ def get_fitness_variance(meansegregating, minsegregating, maxsegregating, E_sele
   for k in range(int(minsegregating), int(maxsegregating+1)):
     floatk = float(k)
     probability_k = np.exp(floatk*np.log(meansegregating) - meansegregating - gammaln(k + 1))
-    growthrate = get_growht_rate(k, E_selectioncoeff, R_epistasis, expected_term) 
+    growthrate = get_growht_rate(k, E_selectioncoeff, R_epistasis, expected_term, minsegregating, maxsegregating) 
     fitness = np.exp(growthrate)
     expectationW += fitness*probability_k
     espectationW2 += (fitness**2)*probability_k
